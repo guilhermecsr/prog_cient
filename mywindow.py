@@ -1,4 +1,5 @@
 from PyQt5.QtWidgets import *
+from PyQt5.QtGui import *
 from mycanvas import *
 from mymodel import *
 
@@ -14,6 +15,20 @@ class MyWindow(QMainWindow):
         self.model = MyModel()
         self.canvas.setModel(self.model)
 
+        # create a Toolbar
+        tb = self.addToolBar("File")
+
+        fit = QAction(QIcon("icons/fit.jpg"), "fit", self)
+        tb.addAction(fit)
+
+        clearAll = QAction(QIcon("icons/fit.jpg"), "clear", self)
+        tb.addAction(clearAll)
+
+        tb.actionTriggered[QAction].connect(self.tbpressed)
+
     def tbpressed(self, a):
         if a.text() == "fit":
             self.canvas.fitWorldToViewport()
+
+        # if a.text() == "clear":
+        #     self.canvas.

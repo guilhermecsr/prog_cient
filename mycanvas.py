@@ -2,6 +2,7 @@ from PyQt5 import QtOpenGL
 from PyQt5.QtWidgets import *
 from PyQt5 import QtCore
 from OpenGL.GL import *
+from hetool import *
 
 
 class MyCanvas(QtOpenGL.QGLWidget):
@@ -17,8 +18,13 @@ class MyCanvas(QtOpenGL.QGLWidget):
         self.m_T = 1000.0
         self.list = None
         self.m_buttonPressed = False
-        self.m_pt0 = QtCore.QPoint(0.0, 0.0)
-        self.m_pt1 = QtCore.QPoint(0.0, 0.0)
+        self.m_pt0 = QtCore.QPointF(0.0, 0.0)
+        self.m_pt1 = QtCore.QPointF(0.0, 0.0)
+
+        self.tol = 10e-2
+        self.hemodel = HeModel()
+        self.heview = HeView(self.hemodel)
+        self.hecontroller = HeController(self.hemodel)
 
     def initializeGL(self):
         # glClearColor(1.0, 1.0, 1.0, 1.0)
@@ -29,14 +35,14 @@ class MyCanvas(QtOpenGL.QGLWidget):
     def resizeGL(self, _width, _height):
         self.m_w = _width
         self.m_h = _height
-        if(self.m_model==None)or(self.m_model.isEmpty()): self.scaleWorldWindow(1.0)
+        if(self.m_model is None) or (self.m_model.isEmpty()): self.scaleWorldWindow(1.0)
         else:
-            self.m_L,self.m_R,self.m_B,self.m_T = self.m_model.getBoundBox()
+            self.m_L, self.m_R, self.m_B, self.m_T = self.m_model.getBoundBox()
             self.scaleWorldWindow(1.1)
         glViewport(0, 0, self.m_w, self.m_h)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        glOrtho(self.m_L,self.m_R,self.m_B,self.m_T,-1.0,1.0)
+        glOrtho(self.m_L, self.m_R, self.m_B, self.m_T, -1.0, 1.0)
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
 
@@ -72,19 +78,44 @@ class MyCanvas(QtOpenGL.QGLWidget):
         glVertex2f(pt0_U.x(), pt0_U.y())
         glVertex2f(pt1_U.x(), pt1_U.y())
         glEnd()
+
         if not ((self.m_model == None) and (self.m_model.isEmpty())):
             verts = self.m_model.getVerts()
             glColor3f(0.0, 1.0, 0.0)  # green
-            glBegin(GL_TRIANGLES)
-            for vtx in verts:
-                glVertex2f(vtx.getX(), vtx.getY())
-            glEnd()
             curves = self.m_model.getCurves()
             glColor3f(0.0, 0.0, 1.0)  # blue
             glBegin(GL_LINES)
             for curv in curves:
                 glVertex2f(curv.getP1().getX(), curv.getP1().getY())
                 glVertex2f(curv.getP2().getX(), curv.getP2().getY())
+            glEnd()
+
+        if not(self.heview.isEmpty()):
+            # print("teste")
+            patches = self.heview.getPatches()
+            glColor3f(1.0, 0.0, 1.0)
+            for pat in patches:
+                triangs = Tesselation.tessellate(pat.getPoints())
+                for triang in triangs:
+                    glBegin(GL_TRIANGLES)
+                    for pt in triang:
+                        glVertex2d(pt.getX(), pt.getY())
+                    glEnd()
+
+            segments = self.heview.getSegments()
+            glColor3f(0.0, 1.0, 1.0)
+            for curv in segments:
+                ptc = curv.getPointsToDraw()
+                glBegin(GL_LINES)
+                glVertex2f(ptc[0].getX(), ptc[0].getY())
+                glVertex2f(ptc[1].getX(), ptc[1].getY())
+                glEnd()
+            verts = self.heview.getPoints()
+            glColor3f(1.0, 0.0, 0.0)
+            glPointSize(3)
+            glBegin(GL_POINTS)
+            for vert in verts:
+                glVertex2f(vert.getX(), vert.getY())
             glEnd()
         glEndList()
 
@@ -109,19 +140,48 @@ class MyCanvas(QtOpenGL.QGLWidget):
     def mouseReleaseEvent(self, event):
         pt0_U = self.convertPtCoordsToUniverse(self.m_pt0)
         pt1_U = self.convertPtCoordsToUniverse(self.m_pt1)
-        self.m_model.setCurve(pt0_U.x(), pt0_U.y(), pt1_U.x(), pt1_U.y())
-        self.m_model.setCurve(self.m_pt0.x(), self.m_pt0.y(), self.m_pt1.x(), self.m_pt1.y())
+
+        # aqui o programa reposiciona o inicio e o final da reta para os pontos mais proximos!
+        tol = 100
+        snaped1, xs1, ys1 = self.heview.snapToPoint(pt0_U.x(), pt0_U.y(), tol)
+        snaped2, xs2, ys2 = self.heview.snapToPoint(pt1_U.x(), pt1_U.y(), tol)
+
+        if snaped1:
+            pt0_Ux, pt0_Uy = xs1, ys1
+        else:
+            pt0_Ux, pt0_Uy = pt0_U.x(), pt0_U.y()
+
+        if snaped2:
+            pt1_Ux, pt1_Uy = xs2, ys2
+        else:
+            pt1_Ux, pt1_Uy = pt1_U.x(), pt1_U.y()
+
+        self.m_model.setCurve(pt0_Ux, pt0_Uy, pt1_Ux, pt1_Uy)
+        self.hecontroller.insertSegment([pt0_Ux, pt0_Uy, pt1_Ux, pt1_Uy], self.tol)
+        # self.m_model.setCurve(self.m_pt0.x(), self.m_pt0.y(), self.m_pt1.x(), self.m_pt1.y())
         self.m_buttonPressed = False
         self.m_pt0.setX(0.0)
         self.m_pt0.setY(0.0)
         self.m_pt1.setX(0.0)
         self.m_pt1.setY(0.0)
+        self.update()
+        self.paintGL()
 
     def setModel(self, _model):
         self.m_model = _model
 
+    # def fitWorldToViewport(self):
+    #     # if (self.m_model == None) or (self.m_model.isEmpty()): return
+    #     self.m_L, self.m_R, self.m_B, self.m_T = self.m_model.getBoundBox()
+    #     self.scaleWorldWindow(1.10)
+    #     self.update()
+
     def fitWorldToViewport(self):
-        if (self.m_model == None) or (self.m_model.isEmpty()): return
+        print("fitWorldToViewport")
+
+        # mudar para heview
+        if self.m_model is None:
+            return
         self.m_L, self.m_R, self.m_B, self.m_T = self.m_model.getBoundBox()
         self.scaleWorldWindow(1.10)
         self.update()
