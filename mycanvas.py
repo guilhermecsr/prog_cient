@@ -3,6 +3,8 @@ from PyQt5.QtWidgets import *
 from PyQt5 import QtCore
 from OpenGL.GL import *
 from hetool import *
+import tkinter as tk
+from tkinter import messagebox as mb
 
 
 class MyCanvas(QtOpenGL.QGLWidget):
@@ -20,6 +22,11 @@ class MyCanvas(QtOpenGL.QGLWidget):
         self.m_buttonPressed = False
         self.m_pt0 = QtCore.QPointF(0.0, 0.0)
         self.m_pt1 = QtCore.QPointF(0.0, 0.0)
+        self.grid = False
+        self.alt = 60
+        self.lar = 60
+        self.root = tk.Tk()
+        self.coordenadas = []
 
         self.tol = 10e-2
         self.hemodel = HeModel()
@@ -73,6 +80,7 @@ class MyCanvas(QtOpenGL.QGLWidget):
         # glShadeModel(GL_SMOOTH)
         pt0_U = self.convertPtCoordsToUniverse(self.m_pt0)
         pt1_U = self.convertPtCoordsToUniverse(self.m_pt1)
+        # print("param", self.m_pt0, "retorno:", pt0_U)
         glColor3f(1.0, 0.0, 0.0)
         glBegin(GL_LINE_STRIP)
         glVertex2f(pt0_U.x(), pt0_U.y())
@@ -110,6 +118,7 @@ class MyCanvas(QtOpenGL.QGLWidget):
                 glVertex2f(ptc[0].getX(), ptc[0].getY())
                 glVertex2f(ptc[1].getX(), ptc[1].getY())
                 glEnd()
+
             verts = self.heview.getPoints()
             glColor3f(1.0, 0.0, 0.0)
             glPointSize(3)
@@ -117,7 +126,75 @@ class MyCanvas(QtOpenGL.QGLWidget):
             for vert in verts:
                 glVertex2f(vert.getX(), vert.getY())
             glEnd()
+
+            # pega o boundbox, cria um grid de pontos e verifica quais estão dentro do patch para mostrar
+            if self.grid:
+                m_L, m_R, m_B, m_T = self.heview.getBoundBox()
+                glColor3f(1.0, 1.0, 1.0)
+                glPointSize(3)
+                glBegin(GL_POINTS)
+                pontos = []
+                coordenadas = []
+                for i in range(int(m_L), int(m_R), int(self.lar)):
+                    for j in range(int(m_B), int(m_T), int(self.alt)):
+                        p = Point(i, j)
+                        for pat in patches:
+                            if pat.isPointInside(p):
+                                pontos.append(p)
+                                coordenadas.append([p.getX(), p.getY()])
+                                print(len(pontos), "pontos presentes.")
+                        for pt in pontos:
+                            glVertex2f(pt.getX(), pt.getY())
+                glEnd()
+                self.coordenadas = coordenadas
+        self.exportJson()
         glEndList()
+
+    def exportJson(self):
+        print(self.coordenadas)
+        print(len(self.coordenadas))
+        jsonString = json.dumps(self.coordenadas)
+        jsonFile = open("coordenadas_dos_pontos_do_grid.json", "w")
+        jsonFile.write(jsonString)
+        jsonFile.close()
+
+    def criaDialogBox(self):
+        # root = tk.Tk()
+        self.root.geometry("200x120")
+
+        def getTextInput():
+            x = horizontal.get("1.0", "end")
+            y = vertical.get("1.0", "end")
+
+            # cria o grid conforme o x e y informados
+            self.criaGrid(x, y)
+
+        horizontal = tk.Text(self.root, height=1)
+        vertical = tk.Text(self.root, height=1)
+        esp_lateral = tk.Label(self.root, text="Espaçamento lateral (50px+)")
+        esp_vertical = tk.Label(self.root, text="Espaçamento lateral (50px+)")
+
+        esp_lateral.pack()
+        horizontal.pack()
+        esp_vertical.pack()
+        vertical.pack()
+
+        btnRead = tk.Button(self.root, height=1, width=5, text="Read",
+                            command=getTextInput)
+
+        btnRead.pack()
+
+        self.root.mainloop()
+
+    def criaGrid(self, x, y):
+        self.lar = x
+        self.alt = y
+        self.grid = True
+        self.update()
+        self.paintGL()
+        print("Cria Grid")
+        self.root.destroy()
+
 
     def convertPtCoordsToUniverse(self, _pt):
         dX = self.m_R - self.m_L

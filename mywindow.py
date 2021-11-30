@@ -7,7 +7,7 @@ from mymodel import *
 class MyWindow(QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
-        self.setGeometry(100,100,600,400)
+        self.setGeometry(100, 100, 600, 400)
         self.setWindowTitle("MyGLDrawer")
         self.canvas = MyCanvas()
         self.setCentralWidget(self.canvas)
@@ -18,11 +18,11 @@ class MyWindow(QMainWindow):
         # create a Toolbar
         tb = self.addToolBar("File")
 
-        fit = QAction(QIcon("icons/fit.jpg"), "fit", self)
+        fit = QAction(QIcon("icons/zoom.png"), "fit", self)
         tb.addAction(fit)
 
-        clearAll = QAction(QIcon("icons/fit.jpg"), "clear", self)
-        tb.addAction(clearAll)
+        grid = QAction(QIcon("icons/grid.png"), "grid", self)
+        tb.addAction(grid)
 
         tb.actionTriggered[QAction].connect(self.tbpressed)
 
@@ -30,5 +30,5 @@ class MyWindow(QMainWindow):
         if a.text() == "fit":
             self.canvas.fitWorldToViewport()
 
-        # if a.text() == "clear":
-        #     self.canvas.
+        if a.text() == "grid":
+            self.canvas.criaDialogBox()
