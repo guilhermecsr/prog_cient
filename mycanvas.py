@@ -14,10 +14,10 @@ class MyCanvas(QtOpenGL.QGLWidget):
         self.m_model = None
         self.m_w = 0  # width: GL canvas horizontal size
         self.m_h = 0  # height: GL canvas vertical size
-        self.m_L = -1000.0
-        self.m_R = 1000.0
-        self.m_B = -1000.0
-        self.m_T = 1000.0
+        self.m_L = 0000.0
+        self.m_R = 2000.0
+        self.m_B = 0000.0
+        self.m_T = 2000.0
         self.list = None
         self.m_buttonPressed = False
         self.m_pt0 = QtCore.QPointF(0.0, 0.0)
@@ -134,7 +134,12 @@ class MyCanvas(QtOpenGL.QGLWidget):
                 glPointSize(3)
                 glBegin(GL_POINTS)
                 pontos = []
+                fora = []
                 coordenadas = []
+                coordenadas_fora = []
+                todos_pontos = []
+                linha = []
+
                 for i in range(int(m_L), int(m_R), int(self.lar)):
                     for j in range(int(m_B), int(m_T), int(self.alt)):
                         p = Point(i, j)
@@ -143,20 +148,63 @@ class MyCanvas(QtOpenGL.QGLWidget):
                                 pontos.append(p)
                                 coordenadas.append([p.getX(), p.getY()])
                                 print(len(pontos), "pontos presentes.")
+                            else:
+                                fora.append(p)
+                                coordenadas_fora.append([p.getX(), p.getY()])
                         for pt in pontos:
                             glVertex2f(pt.getX(), pt.getY())
+
+                for i in range(int(m_L), int(m_R), int(self.lar)):
+                    for j in range(int(m_B), int(m_T), int(self.alt)):
+                        linha.append(0)
+                        linha.append(0)
+                    todos_pontos.append(linha)
+                    todos_pontos.append(linha)
+                    linha = []
+
+                for i in range(len(coordenadas)):
+                    x = int((coordenadas[i][0])/int(self.lar))
+                    y = int((coordenadas[i][1])/int(self.alt))
+                    print(coordenadas[i][0], int(self.lar), coordenadas[i][1], int(self.alt))
+                    print("x", x, "y", y)
+                    print("x", len(todos_pontos), "y", len(todos_pontos[1]))
+                    # todos_pontos[y][x] = 1
+                # for i in range(len(todos_pontos)):
+                #     print(todos_pontos[i])
+                #     pass
+
+
+                self.identPontosVizinhos(coordenadas)
                 glEnd()
                 self.coordenadas = coordenadas
         self.exportJson()
         glEndList()
 
     def exportJson(self):
-        print(self.coordenadas)
-        print(len(self.coordenadas))
+        # print(self.coordenadas)
+        # print(len(self.coordenadas))
         jsonString = json.dumps(self.coordenadas)
         jsonFile = open("coordenadas_dos_pontos_do_grid.json", "w")
+        jsonFile.write('{\n')
+        jsonFile.write('"coords": ')
         jsonFile.write(jsonString)
+        jsonFile.write(',\n')
+        jsonFile.write('"particle_radius": ')
+        jsonFile.write(str(int(self.lar)/2))
+        jsonFile.write('\n}')
         jsonFile.close()
+
+    def identPontosVizinhos(self, coords):
+        vizinhos = []
+        # for i in coords:
+
+
+
+
+
+
+        # return vizinhos
+        pass
 
     def criaDialogBox(self):
         # root = tk.Tk()
