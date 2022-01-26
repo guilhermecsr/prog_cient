@@ -153,9 +153,10 @@ class MyCanvas(QtOpenGL.QGLWidget):
     def exportJson(self):
         print(self.coordenadas)
         print(len(self.coordenadas))
-        jsonString = json.dumps(self.coordenadas)
+        hash = {}
+        hash["coordenadas"] = self.coordenadas
         jsonFile = open("coordenadas_dos_pontos_do_grid.json", "w")
-        jsonFile.write(jsonString)
+        json.dump(hash, jsonFile)
         jsonFile.close()
 
     def criaDialogBox(self):
