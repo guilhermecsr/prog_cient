@@ -4,6 +4,7 @@ from PyQt5 import QtCore
 from OpenGL.GL import *
 from hetool import *
 import tkinter as tk
+import numpy as np
 from tkinter import messagebox as mb
 
 
@@ -27,6 +28,7 @@ class MyCanvas(QtOpenGL.QGLWidget):
         self.lar = 60
         self.root = tk.Tk()
         self.coordenadas = []
+        self.indices = []
 
         self.tol = 10e-2
         self.hemodel = HeModel()
@@ -133,30 +135,85 @@ class MyCanvas(QtOpenGL.QGLWidget):
                 glColor3f(1.0, 1.0, 1.0)
                 glPointSize(3)
                 glBegin(GL_POINTS)
+                eterno = 0
+                x = 0
+                y = 0
                 pontos = []
                 coordenadas = []
+                indices = []
                 for i in range(int(m_L), int(m_R), int(self.lar)):
+                    x += 1
                     for j in range(int(m_B), int(m_T), int(self.alt)):
                         p = Point(i, j)
+                        y += 1
                         for pat in patches:
                             if pat.isPointInside(p):
+                                eterno += 1
+                                indices.append([eterno, x, y])
                                 pontos.append(p)
                                 coordenadas.append([p.getX(), p.getY()])
-                                print(len(pontos), "pontos presentes.")
+                                # print(len(pontos), "pontos presentes.")
+                            else:
+                                indices.append([0, x, y])
                         for pt in pontos:
                             glVertex2f(pt.getX(), pt.getY())
+                    y = 0
+                print(len(pontos), "pontos presentes.")
                 glEnd()
-                self.coordenadas = coordenadas
+                self.indices = self.faz_o_grid(indices)
         self.exportJson()
+        # self.vizinhanca()
         glEndList()
 
+    def faz_o_grid(self, array):
+        aux = []
+        saida = []
+
+        if len(array) > 0:
+            x = array[0][1]
+            for i in range(len(array)):
+                if array[i][1] == x:
+                    aux.append(array[i])
+                else:
+                    saida.append(aux)
+                    aux = []
+                x = array[i][1]
+            return saida
+        else:
+            return saida
+
+    def vizinhanca(self):
+        count = 0
+        grid = self.faz_o_grid(self.indices)
+        # zipped_rows = zip(*grid)
+        # grid = [list(row) for row in zipped_rows]
+
+        for i in grid:
+            for j in i:
+                print("{:>3}".format(j[0]), end=" ")
+
+        for i in range(len(grid)):
+            for j in range(1, len(grid[i])):
+                if grid[i][j][0] != 0:
+                    count += 1
+                    str = "{} {} {} {}".format(grid[i+1][j][0] if self.index_in_list(grid, i+1) and self.index_in_list(grid, j) else 0,
+                                               grid[i-1][j][0] if self.index_in_list(grid, i-1) and self.index_in_list(grid, j) else 0,
+                                               grid[i][j+1][0] if self.index_in_list(grid[i], j+1) and self.index_in_list(grid, i) else 0,
+                                               grid[i][j-1][0] if self.index_in_list(grid[i], j-1) and self.index_in_list(grid, i) else 0)
+                    print(count, "|", str, "| (i", i, "j", j, ")")
+
+    def index_in_list(self, a_list, i):
+        try:
+            temp = a_list[i]
+            return True
+        except IndexError:
+            return False
+
     def exportJson(self):
-        print(self.coordenadas)
-        print(len(self.coordenadas))
-        hash = {}
-        hash["coordenadas"] = self.coordenadas
+        inds = {}
+        inds["indices"] = self.indices
         jsonFile = open("coordenadas_dos_pontos_do_grid.json", "w")
-        json.dump(hash, jsonFile)
+        json.dump(inds, jsonFile)
         jsonFile.close()
 
     def criaDialogBox(self):
