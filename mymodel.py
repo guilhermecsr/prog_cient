@@ -45,6 +45,7 @@ class MyModel:
         # self.m_verts.append(p2)
         # self.m_verts.append(p3)
         self.m_curves = []
+        self.m_fences = []
 
     def setVerts(self, _x, _y):
         self.m_verts.append(MyPoint(_x, _y))
@@ -55,8 +56,14 @@ class MyModel:
     def setCurve(self, _x1, _y1, _x2, _y2):
         self.m_curves.append(MyCurve(MyPoint(_x1, _y1), MyPoint(_x2, _y2)))
 
+    def setFence(self, _x1, _y1, _x2, _y2):
+        self.m_fences.append(MyCurve(MyPoint(_x1, _y1), MyPoint(_x2, _y2)))
+
     def getCurves(self):
         return self.m_curves
+
+    def getFences(self):
+        return self.m_fences
 
     def isEmpty(self):
         return len(self.m_verts) == 0

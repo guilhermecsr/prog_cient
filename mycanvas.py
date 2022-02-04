@@ -3,15 +3,15 @@ from PyQt5.QtWidgets import *
 from PyQt5 import QtCore
 from OpenGL.GL import *
 from hetool import *
-import tkinter as tk
+from tkinter import *
 import numpy as np
 from tkinter import messagebox as mb
 
 
 class MyCanvas(QtOpenGL.QGLWidget):
-
     def __init__(self):
         super(MyCanvas, self).__init__()
+        self.m_model = None
         self.m_model = None
         self.m_w = 0  # width: GL canvas horizontal size
         self.m_h = 0  # height: GL canvas vertical size
@@ -19,14 +19,23 @@ class MyCanvas(QtOpenGL.QGLWidget):
         self.m_R = 1000.0
         self.m_B = -1000.0
         self.m_T = 1000.0
+        self.retangular = False
         self.list = None
         self.m_buttonPressed = False
+        self.leftMouse = False
         self.m_pt0 = QtCore.QPointF(0.0, 0.0)
         self.m_pt1 = QtCore.QPointF(0.0, 0.0)
+
+        # self.m_buttonPressed = False
+        self.m_pt0_f = QtCore.QPointF(0.0, 0.0)
+        self.m_pt1_f = QtCore.QPointF(0.0, 0.0)
+        self.fencedPoints = []
+        self.bconditions = []
+
         self.grid = False
+        self.pontos = []
         self.alt = 60
         self.lar = 60
-        self.root = tk.Tk()
         self.coordenadas = []
         self.indices = []
 
@@ -34,6 +43,10 @@ class MyCanvas(QtOpenGL.QGLWidget):
         self.hemodel = HeModel()
         self.heview = HeView(self.hemodel)
         self.hecontroller = HeController(self.hemodel)
+
+        # self.hemodel_fence = HeModel()
+        # self.heview_fence = HeView(self.hemodel_fence)
+        # self.hecontroller_fence = HeController(self.hemodel_fence)
 
     def initializeGL(self):
         # glClearColor(1.0, 1.0, 1.0, 1.0)
@@ -44,7 +57,8 @@ class MyCanvas(QtOpenGL.QGLWidget):
     def resizeGL(self, _width, _height):
         self.m_w = _width
         self.m_h = _height
-        if(self.m_model is None) or (self.m_model.isEmpty()): self.scaleWorldWindow(1.0)
+        if (self.m_model is None) or (self.m_model.isEmpty()):
+            self.scaleWorldWindow(1.0)
         else:
             self.m_L, self.m_R, self.m_B, self.m_T = self.m_model.getBoundBox()
             self.scaleWorldWindow(1.1)
@@ -82,17 +96,15 @@ class MyCanvas(QtOpenGL.QGLWidget):
         # glShadeModel(GL_SMOOTH)
         pt0_U = self.convertPtCoordsToUniverse(self.m_pt0)
         pt1_U = self.convertPtCoordsToUniverse(self.m_pt1)
+
+        pt0f_U = self.convertPtCoordsToUniverse(self.m_pt0_f)
+        pt1f_U = self.convertPtCoordsToUniverse(self.m_pt1_f)
         # print("param", self.m_pt0, "retorno:", pt0_U)
-        glColor3f(1.0, 0.0, 0.0)
-        glBegin(GL_LINE_STRIP)
-        glVertex2f(pt0_U.x(), pt0_U.y())
-        glVertex2f(pt1_U.x(), pt1_U.y())
-        glEnd()
 
         if not ((self.m_model == None) and (self.m_model.isEmpty())):
-            verts = self.m_model.getVerts()
-            glColor3f(0.0, 1.0, 0.0)  # green
-            curves = self.m_model.getCurves()
+            # verts = self.m_model.getVerts()
+            # glColor3f(0.0, 1.0, 0.0)  # green
+            curves = self.m_model.getFences()
             glColor3f(0.0, 0.0, 1.0)  # blue
             glBegin(GL_LINES)
             for curv in curves:
@@ -100,7 +112,7 @@ class MyCanvas(QtOpenGL.QGLWidget):
                 glVertex2f(curv.getP2().getX(), curv.getP2().getY())
             glEnd()
 
-        if not(self.heview.isEmpty()):
+        if not (self.heview.isEmpty()):
             # print("teste")
             patches = self.heview.getPatches()
             glColor3f(1.0, 0.0, 1.0)
@@ -129,120 +141,155 @@ class MyCanvas(QtOpenGL.QGLWidget):
                 glVertex2f(vert.getX(), vert.getY())
             glEnd()
 
-            # pega o boundbox, cria um grid de pontos e verifica quais estão dentro do patch para mostrar
+        if self.leftMouse:
+            glColor3f(1.0, 0.0, 0.0)
+            glBegin(GL_LINE_STRIP)
+            glVertex2f(pt0_U.x(), pt0_U.y())
+            glVertex2f(pt1_U.x(), pt1_U.y())
+
+            glEnd()
+            # self.exportJson()
+
+        else:
+            glColor3f(1.0, 0.0, 0.0)
+            glBegin(GL_LINE_STRIP)
+            # x1, y1, x2, y2 = int(pt0f_U.x()), int(pt0f_U.y()), int(pt1f_U.x()), int(pt1f_U.y())
+            # QtCore.QRect.getCoords(x1, y1, x2, y2)
+            # r1 = QtCore.QRect(x1, y1, x2, y2)
+
+            # QRect não funcionou, fiz linha por linha
+            glVertex2f(pt0f_U.x(), pt0f_U.y())
+            glVertex2f(pt1f_U.x(), pt0f_U.y())
+            glVertex2f(pt0f_U.x(), pt0f_U.y())
+            glVertex2f(pt0f_U.x(), pt1f_U.y())
+            glVertex2f(pt1f_U.x(), pt1f_U.y())
+            glVertex2f(pt1f_U.x(), pt0f_U.y())
+            glEnd()
+
+        # pega o boundbox, cria um grid de pontos e verifica quais estão dentro do patch para mostrar
+        self.grid_de_pontos()
+        self.exportJson()
+        glEndList()
+
+    def grid_de_pontos(self):
+        if not (self.heview.isEmpty()):
+            patches = self.heview.getPatches()
             if self.grid:
                 m_L, m_R, m_B, m_T = self.heview.getBoundBox()
-                glColor3f(1.0, 1.0, 1.0)
                 glPointSize(3)
                 glBegin(GL_POINTS)
                 eterno = 0
                 x = 0
                 y = 0
                 pontos = []
-                coordenadas = []
                 indices = []
-                for i in range(int(m_L), int(m_R), int(self.lar)):
+                for i in range(int(m_L)+1, int(m_R)-1, int(self.lar)):
                     x += 1
-                    for j in range(int(m_B), int(m_T), int(self.alt)):
+                    for j in range(int(m_B)+1, int(m_T)-1, int(self.alt)):
                         p = Point(i, j)
                         y += 1
                         for pat in patches:
                             if pat.isPointInside(p):
                                 eterno += 1
+                                p.attributes.append([eterno, x, y])
                                 indices.append([eterno, x, y])
                                 pontos.append(p)
-                                coordenadas.append([p.getX(), p.getY()])
-                                # print(len(pontos), "pontos presentes.")
                             else:
+                                p.attributes.append([0, x, y])
                                 indices.append([0, x, y])
+                                pontos.append(p)
                         for pt in pontos:
+                            if pt.selected:
+                                glColor3f(1.0, 0.0, 0.0)
+                                print('select')
+                            else:
+                                glColor3f(1.0, 1.0, 1.0)
+                            # if pt.attributes[0][0] != 0:
                             glVertex2f(pt.getX(), pt.getY())
                     y = 0
-                print(len(pontos), "pontos presentes.")
+                # print(len(pontos), "pontos presentes.")
                 glEnd()
-                self.indices = self.faz_o_grid(indices)
-        self.exportJson()
-        # self.vizinhanca()
-        glEndList()
+                self.pontos = pontos
+                self.indices = self.faz_matriz(self.pontos)  # (indices)
 
-    def faz_o_grid(self, array):
+    def faz_matriz(self, pontos):
         aux = []
         saida = []
 
-        if len(array) > 0:
-            x = array[0][1]
-            for i in range(len(array)):
-                if array[i][1] == x:
-                    aux.append(array[i])
+        if len(pontos) > 0:
+            x = pontos[0].attributes[0][1]
+            for i in range(len(pontos)):
+                if pontos[i].attributes[0][1] == x:
+                    aux.append(pontos[i].attributes[0])
                 else:
                     saida.append(aux)
                     aux = []
-                x = array[i][1]
+                x = pontos[i].attributes[0][1]
             return saida
         else:
             return saida
 
-    def vizinhanca(self):
-        count = 0
-        grid = self.faz_o_grid(self.indices)
-        # zipped_rows = zip(*grid)
-        # grid = [list(row) for row in zipped_rows]
+    def faz_condicoes(self, pontos):
+        saida = []
 
-        for i in grid:
-            for j in i:
-                print("{:>3}".format(j[0]), end=" ")
-
-        for i in range(len(grid)):
-            for j in range(1, len(grid[i])):
-                if grid[i][j][0] != 0:
-                    count += 1
-                    str = "{} {} {} {}".format(grid[i+1][j][0] if self.index_in_list(grid, i+1) and self.index_in_list(grid, j) else 0,
-                                               grid[i-1][j][0] if self.index_in_list(grid, i-1) and self.index_in_list(grid, j) else 0,
-                                               grid[i][j+1][0] if self.index_in_list(grid[i], j+1) and self.index_in_list(grid, i) else 0,
-                                               grid[i][j-1][0] if self.index_in_list(grid[i], j-1) and self.index_in_list(grid, i) else 0)
-                    print(count, "|", str, "| (i", i, "j", j, ")")
-
-    def index_in_list(self, a_list, i):
-        try:
-            temp = a_list[i]
-            return True
-        except IndexError:
-            return False
+        if len(pontos) > 0 and len(pontos[0].attributes) > 0:
+            for i in range(len(pontos)):
+                saida.append(pontos[i].attributes[1]["temperatura"])
+            print(saida)
+            return saida
+        else:
+            return saida
 
     def exportJson(self):
         inds = {}
         inds["indices"] = self.indices
+        inds["bc"] = self.bconditions
         jsonFile = open("coordenadas_dos_pontos_do_grid.json", "w")
         json.dump(inds, jsonFile)
         jsonFile.close()
 
-    def criaDialogBox(self):
-        # root = tk.Tk()
-        self.root.geometry("200x120")
+    def criaDialogBox(self, grid=False, condicao=False):
+        def submit():
+            if grid:
+                x = int(caixa_1.get())
+                y = int(caixa_2.get())
 
-        def getTextInput():
-            x = horizontal.get("1.0", "end")
-            y = vertical.get("1.0", "end")
+                self.criaGrid(x, y)
+                janela.destroy()
+            if condicao:
+                bc = int(caixa_1.get())
+                self.condicoes_contorno(bc)
+                janela.destroy()
 
-            # cria o grid conforme o x e y informados
-            self.criaGrid(x, y)
+        janela = Tk()
+        if grid:
+            label_1 = Label(janela, text="distância em pixels entre os pontos", font="Arial 12")
+            label_1.place(x=1, y=2)
 
-        horizontal = tk.Text(self.root, height=1)
-        vertical = tk.Text(self.root, height=1)
-        esp_lateral = tk.Label(self.root, text="Espaçamento lateral (50px+)")
-        esp_vertical = tk.Label(self.root, text="Espaçamento lateral (50px+)")
+            botao_1 = Button(janela, width=10, text="botao", command=submit, background="dark grey")
+            botao_1.place(x=85, y=120)
 
-        esp_lateral.pack()
-        horizontal.pack()
-        esp_vertical.pack()
-        vertical.pack()
+            caixa_1 = Entry(janela, background="white", width=10, font="Arial 12")
+            caixa_1.place(x=80, y=45)
 
-        btnRead = tk.Button(self.root, height=1, width=5, text="Read",
-                            command=getTextInput)
+            caixa_2 = Entry(janela, background="white", width=10, font="Arial 12")
+            caixa_2.place(x=80, y=80)
 
-        btnRead.pack()
+            janela.geometry("250x160+0+0")
+            janela.mainloop()
 
-        self.root.mainloop()
+        if condicao:
+            label_1 = Label(janela, text="temperatura dos pontos selecionados", font="Arial 12")
+            label_1.place(x=1, y=2)
+
+            botao_1 = Button(janela, width=10, text="botao", command=submit, background="dark grey")
+            botao_1.place(x=85, y=120)
+
+            caixa_1 = Entry(janela, background="white", width=10, font="Arial 12")
+            caixa_1.place(x=80, y=45)
+
+            janela.geometry("250x160+0+0")
+            janela.mainloop()
 
     def criaGrid(self, x, y):
         self.lar = x
@@ -251,8 +298,6 @@ class MyCanvas(QtOpenGL.QGLWidget):
         self.update()
         self.paintGL()
         print("Cria Grid")
-        self.root.destroy()
-
 
     def convertPtCoordsToUniverse(self, _pt):
         dX = self.m_R - self.m_L
@@ -264,52 +309,113 @@ class MyCanvas(QtOpenGL.QGLWidget):
         return QtCore.QPointF(x, y)
 
     def mousePressEvent(self, event):
-        self.m_buttonPressed = True
-        self.m_pt0 = event.pos()
+        if event.button() == 1:  # botão esquerdo = 1
+            self.leftMouse = True
+            # print("botão esquerdo")
+            self.m_buttonPressed = True
+            self.m_pt0 = event.pos()
+        elif event.button() == 2:  # botão direito = 2
+            self.leftMouse = False
+            self.m_buttonPressed = True
+            self.m_pt0_f = event.pos()
+            # print("botão direito")
 
     def mouseMoveEvent(self, event):
         if self.m_buttonPressed:
             self.m_pt1 = event.pos()
+            self.m_pt1_f = event.pos()
             self.update()
 
     def mouseReleaseEvent(self, event):
-        pt0_U = self.convertPtCoordsToUniverse(self.m_pt0)
-        pt1_U = self.convertPtCoordsToUniverse(self.m_pt1)
+        if event.button() == 1:
+            pt0_U = self.convertPtCoordsToUniverse(self.m_pt0)
+            pt1_U = self.convertPtCoordsToUniverse(self.m_pt1)
 
-        # aqui o programa reposiciona o inicio e o final da reta para os pontos mais proximos!
-        tol = 100
-        snaped1, xs1, ys1 = self.heview.snapToPoint(pt0_U.x(), pt0_U.y(), tol)
-        snaped2, xs2, ys2 = self.heview.snapToPoint(pt1_U.x(), pt1_U.y(), tol)
+            # aqui o programa reposiciona o inicio e o final da reta para os pontos mais proximos!
+            tol = 100
+            snaped1, xs1, ys1 = self.heview.snapToPoint(pt0_U.x(), pt0_U.y(), tol)
+            snaped2, xs2, ys2 = self.heview.snapToPoint(pt1_U.x(), pt1_U.y(), tol)
 
-        if snaped1:
-            pt0_Ux, pt0_Uy = xs1, ys1
-        else:
-            pt0_Ux, pt0_Uy = pt0_U.x(), pt0_U.y()
+            if snaped1:
+                pt0_Ux, pt0_Uy = xs1, ys1
+            else:
+                pt0_Ux, pt0_Uy = pt0_U.x(), pt0_U.y()
 
-        if snaped2:
-            pt1_Ux, pt1_Uy = xs2, ys2
-        else:
-            pt1_Ux, pt1_Uy = pt1_U.x(), pt1_U.y()
+            if snaped2:
+                pt1_Ux, pt1_Uy = xs2, ys2
+            else:
+                pt1_Ux, pt1_Uy = pt1_U.x(), pt1_U.y()
 
-        self.m_model.setCurve(pt0_Ux, pt0_Uy, pt1_Ux, pt1_Uy)
-        self.hecontroller.insertSegment([pt0_Ux, pt0_Uy, pt1_Ux, pt1_Uy], self.tol)
-        # self.m_model.setCurve(self.m_pt0.x(), self.m_pt0.y(), self.m_pt1.x(), self.m_pt1.y())
-        self.m_buttonPressed = False
-        self.m_pt0.setX(0.0)
-        self.m_pt0.setY(0.0)
-        self.m_pt1.setX(0.0)
-        self.m_pt1.setY(0.0)
-        self.update()
-        self.paintGL()
+            if self.retangular:
+                self.m_model.setCurve(pt0_U.x(), pt0_U.y(), pt1_U.x(), pt0_U.y())
+                self.m_model.setCurve(pt0_U.x(), pt0_U.y(), pt0_U.x(), pt1_U.y())
+                self.m_model.setCurve(pt1_U.x(), pt1_U.y(), pt0_U.x(), pt1_U.y())
+                self.m_model.setCurve(pt1_U.x(), pt1_U.y(), pt1_U.x(), pt0_U.y())
+
+                self.hecontroller.insertSegment([pt0_U.x(), pt0_U.y(), pt1_U.x(), pt0_U.y()], self.tol)
+                self.hecontroller.insertSegment([pt0_U.x(), pt0_U.y(), pt0_U.x(), pt1_U.y()], self.tol)
+                self.hecontroller.insertSegment([pt1_U.x(), pt1_U.y(), pt0_U.x(), pt1_U.y()], self.tol)
+                self.hecontroller.insertSegment([pt1_U.x(), pt1_U.y(), pt1_U.x(), pt0_U.y()], self.tol)
+                self.retangular = False
+            else:
+                self.m_model.setCurve(pt0_Ux, pt0_Uy, pt1_Ux, pt1_Uy)
+                self.hecontroller.insertSegment([pt0_Ux, pt0_Uy, pt1_Ux, pt1_Uy], self.tol)
+
+            self.m_buttonPressed = False
+            self.m_pt0.setX(0.0)
+            self.m_pt0.setY(0.0)
+            self.m_pt1.setX(0.0)
+            self.m_pt1.setY(0.0)
+            self.update()
+            self.paintGL()
+        elif event.button() == 2:
+            pt0f_U = self.convertPtCoordsToUniverse(self.m_pt0_f)
+            pt1f_U = self.convertPtCoordsToUniverse(self.m_pt1_f)
+
+            array = []
+            for i in range(len(self.pontos)):
+
+                # verifica a cerca sendo formada por todas as direções
+                if ((pt0f_U.x() <= self.pontos[i].getX() <= pt1f_U.x()
+                     and pt0f_U.y() <= self.pontos[i].getY() <= pt1f_U.y())
+                        or (pt1f_U.x() <= self.pontos[i].getX() <= pt0f_U.x()
+                            and pt1f_U.y() <= self.pontos[i].getY() <= pt0f_U.y())
+                        or (pt1f_U.x() <= self.pontos[i].getX() <= pt0f_U.x()
+                            and pt0f_U.y() <= self.pontos[i].getY() <= pt1f_U.y())
+                        or (pt0f_U.x() <= self.pontos[i].getX() <= pt1f_U.x()
+                            and pt1f_U.y() <= self.pontos[i].getY() <= pt0f_U.y())):
+                    self.pontos[i].selected = True
+                    array.append(self.pontos[i])
+            print(len(self.pontos), "pontos, ", len(array), "selecionados")
+
+            # glPointSize(3)
+            # glBegin(GL_POINTS)
+            # glColor3f(1.0, 0.0, 0.0)
+            # for pt in array:
+            #     glVertex2f(pt.getX(), pt.getY())
+            # glEnd()
+
+            self.fencedPoints = array
+            self.criaDialogBox(condicao=True)
+
+            self.m_buttonPressed = False
+            self.m_pt0_f.setX(0.0)
+            self.m_pt0_f.setY(0.0)
+            self.m_pt1_f.setX(0.0)
+            self.m_pt1_f.setY(0.0)
+            self.update()
+            self.paintGL()
+
+    def condicoes_contorno(self, t):
+        for point in self.pontos:
+            if point in self.fencedPoints and point.attributes[0][0] != 0:
+                point.attributes.append({'temperatura': t})
+            else:
+                point.attributes.append({'temperatura': 0})
+        self.bconditions = self.faz_condicoes(self.pontos)
 
     def setModel(self, _model):
         self.m_model = _model
-
-    # def fitWorldToViewport(self):
-    #     # if (self.m_model == None) or (self.m_model.isEmpty()): return
-    #     self.m_L, self.m_R, self.m_B, self.m_T = self.m_model.getBoundBox()
-    #     self.scaleWorldWindow(1.10)
-    #     self.update()
 
     def fitWorldToViewport(self):
         print("fitWorldToViewport")

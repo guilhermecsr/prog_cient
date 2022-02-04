@@ -24,6 +24,12 @@ class MyWindow(QMainWindow):
         grid = QAction(QIcon("icons/grid.png"), "grid", self)
         tb.addAction(grid)
 
+        # clearAll = QAction(QIcon("icons/trash.png"), "clear", self)
+        # tb.addAction(clearAll)
+
+        rect = QAction(QIcon("icons/selecao_rect.png"), "rect", self)
+        tb.addAction(rect)
+
         tb.actionTriggered[QAction].connect(self.tbpressed)
 
     def tbpressed(self, a):
@@ -31,4 +37,10 @@ class MyWindow(QMainWindow):
             self.canvas.fitWorldToViewport()
 
         if a.text() == "grid":
-            self.canvas.criaDialogBox()
+            self.canvas.criaDialogBox(grid=True)
+
+        if a.text() == "clear":
+            self.canvas.clearAll()
+
+        if a.text() == "rect":
+            self.canvas.retangular = True
