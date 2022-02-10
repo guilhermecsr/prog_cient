@@ -28,7 +28,7 @@ class Point():
         self.y = _y
         self.selected = False
         self.vertex = None
-        self.attributes = []
+        self.attributes = [[0, 0, 0], {'temperatura': [0, 0]}]
 
     def setX(self, _x):
         self.x = _x

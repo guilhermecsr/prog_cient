@@ -5,7 +5,6 @@ from OpenGL.GL import *
 from hetool import *
 from tkinter import *
 import numpy as np
-from tkinter import messagebox as mb
 
 
 class MyCanvas(QtOpenGL.QGLWidget):
@@ -46,10 +45,6 @@ class MyCanvas(QtOpenGL.QGLWidget):
         self.hemodel = HeModel()
         self.heview = HeView(self.hemodel)
         self.hecontroller = HeController(self.hemodel)
-
-        # self.hemodel_fence = HeModel()
-        # self.heview_fence = HeView(self.hemodel_fence)
-        # self.hecontroller_fence = HeController(self.hemodel_fence)
 
     def initializeGL(self):
         # glClearColor(1.0, 1.0, 1.0, 1.0)
@@ -105,8 +100,6 @@ class MyCanvas(QtOpenGL.QGLWidget):
         # print("param", self.m_pt0, "retorno:", pt0_U)
 
         if not ((self.m_model == None) and (self.m_model.isEmpty())):
-            # verts = self.m_model.getVerts()
-            # glColor3f(0.0, 1.0, 0.0)  # green
             curves = self.m_model.getFences()
             glColor3f(0.0, 0.0, 1.0)  # blue
             glBegin(GL_LINES)
@@ -116,7 +109,6 @@ class MyCanvas(QtOpenGL.QGLWidget):
             glEnd()
 
         if not (self.heview.isEmpty()):
-            # print("teste")
             patches = self.heview.getPatches()
             glColor3f(1.0, 0.0, 1.0)
             for pat in patches:
@@ -151,14 +143,9 @@ class MyCanvas(QtOpenGL.QGLWidget):
             glVertex2f(pt1_U.x(), pt1_U.y())
 
             glEnd()
-            # self.exportJson()
-
         else:
             glColor3f(1.0, 0.0, 0.0)
             glBegin(GL_LINE_STRIP)
-            # x1, y1, x2, y2 = int(pt0f_U.x()), int(pt0f_U.y()), int(pt1f_U.x()), int(pt1f_U.y())
-            # QtCore.QRect.getCoords(x1, y1, x2, y2)
-            # r1 = QtCore.QRect(x1, y1, x2, y2)
 
             # QRect não funcionou, fiz linha por linha
             glVertex2f(pt0f_U.x(), pt0f_U.y())
@@ -194,11 +181,11 @@ class MyCanvas(QtOpenGL.QGLWidget):
                         for pat in patches:
                             if pat.isPointInside(p):
                                 eterno += 1
-                                p.attributes.append([eterno, x, y])
+                                p.attributes[0] = [eterno, x, y]
                                 indices.append([eterno, x, y])
                                 pontos.append(p)
                             else:
-                                p.attributes.append([0, x, y])
+                                p.attributes[0] = [0, x, y]
                                 indices.append([0, x, y])
                                 pontos.append(p)
                         for pt in pontos:
@@ -210,7 +197,6 @@ class MyCanvas(QtOpenGL.QGLWidget):
                             if pt.attributes[0][0] != 0:
                                 glVertex2f(pt.getX(), pt.getY())
                     y = 0
-                # print(len(pontos), "pontos presentes.")
                 glEnd()
                 self.pontos = pontos
                 self.indices = self.faz_matriz(self.pontos)  # (indices)
@@ -235,19 +221,27 @@ class MyCanvas(QtOpenGL.QGLWidget):
         else:
             return saida
 
-    def faz_condicoes(self, pontos):
-        saida = []
+    def exportJson(self):
+        inds = {}
+        inds["indices"] = self.indices
+        if len(self.bconditions) >= 1:
+            inds["bc"] = self.matrizarray(self.trataBC(self.pontos, self.bconditions))
+        jsonFile = open("coordenadas_dos_pontos_do_grid.json", "w")
+        json.dump(inds, jsonFile)
+        jsonFile.close()
 
-        if len(pontos) > 0 and len(pontos[0].attributes) > 0:
-            for i in range(len(pontos)):
-                if len(pontos[i].attributes) > 1:
-                    # if self.pontos[i].attributes[0][0] != 0:
+    def condicoes_contorno(self, temperatura):
+        if len(self.bconditions) < 1:
+            self.bconditions = [[0, 0]]*len(self.pontos)
 
-                    # print(pontos[i].attributes[1])
-                    saida.append(pontos[i].attributes[1]["temperatura"])
-            return self.trataBC(pontos, saida)
-        else:
-            return saida
+        for point in range(len(self.pontos)):
+            if self.pontos[point] in self.fencedPoints and self.pontos[point].attributes[0][0] != 0:
+                if self.bconditions[point][0] == 0:
+                    self.bconditions[point] = [1, temperatura]
+            else:
+                if self.bconditions[point][0] == 0:
+                    self.bconditions[point] = [0, 0]
+        self.fencedPoints = []
 
     def trataBC(self, pontos, bc):
         aux = []
@@ -270,41 +264,12 @@ class MyCanvas(QtOpenGL.QGLWidget):
         else:
             return saida
 
-    def removeBCzeroPoint(self, bc):
-        saida = []
-        c = 0
-        q = 0
-        print(len(self.indices), len(bc))
-        if len(self.indices) > 0 and len(self.indices) > 0:
-            for i in range(len(self.indices)):
-                q += 1
-                if self.indices[i][0] != 0:
-                    c += 1
-                    saida.append(bc[i])
-                    # print(saida)
-                    print("if", self.indices[i][0], bc[i])
-                    print("if", self.indices[i])
-                else:
-                    print("else", self.indices[i][0], bc[i])
-                    print("else", self.indices[i])
-        return saida
-
     def matrizarray(self, matriz):
         array = []
         for i in range(len(matriz)):
             for j in range(len(matriz[i])):
                 array.append(matriz[i][j])
         return array
-
-    def exportJson(self):
-        inds = {}
-        inds["indices"] = self.indices
-        inds["bc"] = self.bconditions
-        # if len(self.indices) > 0:
-        #     print("pontos: ", len(self.indices)*len(self.indices[0]), "bc: ", len(self.bconditions))
-        jsonFile = open("coordenadas_dos_pontos_do_grid.json", "w")
-        json.dump(inds, jsonFile)
-        jsonFile.close()
 
     def criaDialogBox(self, grid=False, condicao=False):
         def submit():
@@ -443,24 +408,13 @@ class MyCanvas(QtOpenGL.QGLWidget):
                         or (pt0f_U.x() >= self.pontos[i].getX() >= pt1f_U.x()
                             and pt0f_U.y() <= self.pontos[i].getY() <= pt1f_U.y()))
                         and self.pontos[i].attributes[0][0] != 0):
-                    # print("aqui", self.pontos[i].attributes[0][0])
-                    # self.pontos[i].selected = True
                     if self.pontos[i] not in self.fencedPoints:
                         self.fencedPoints.append(self.pontos[i])
                     for j in self.fencedPoints:
                         if j not in self.bounderingPoints:
                             self.bounderingPoints.append(j)
-                    # print(self.pontos[i].attributes)
             print(len(self.pontos), "pontos, ", len(self.fencedPoints), "selecionados")
 
-            # glPointSize(3)
-            # glBegin(GL_POINTS)
-            # glColor3f(1.0, 0.0, 0.0)
-            # for pt in array:
-            #     glVertex2f(pt.getX(), pt.getY())
-            # glEnd()
-
-            # self.fencedPoints = array
             self.criaDialogBox(condicao=True)
 
             self.m_buttonPressed = False
@@ -470,16 +424,6 @@ class MyCanvas(QtOpenGL.QGLWidget):
             self.m_pt1_f.setY(0.0)
             self.update()
             self.paintGL()
-
-    def condicoes_contorno(self, t):
-        for point in self.pontos:
-            if point in self.fencedPoints and point.attributes[0][0] != 0:
-                point.attributes.append({'temperatura': [1, t]})
-            elif point not in self.bounderingPoints:
-                point.attributes.append({'temperatura': [0, 0]})
-        print(len(self.fencedPoints), len(self.bounderingPoints))
-        self.bconditions = self.matrizarray(self.faz_condicoes(self.pontos))
-        self.fencedPoints = []
 
     def setModel(self, _model):
         self.m_model = _model
